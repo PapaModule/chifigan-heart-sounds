@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
 Subskrybuje ntfy SSE. Gdy trening wyśle wiadomość o epoce będącej
-wielokrotnością 5 (5, 10, 15, …), aktualizuje manifest.json —
-wyniki.html odczyta go automatycznie przy następnym otwarciu/odświeżeniu.
+wielokrotnością 5 (5, 10, 15, …), aktualizuje manifest.json i pushuje
+do GitHub Pages — strona aktualizuje się automatycznie.
 """
 import json
 import re
-import sys
+import subprocess
 import urllib.request
 from pathlib import Path
 
 NTFY_TOPIC   = "magisterka-akustyka-serce-2026"
-MANIFEST     = Path("/Users/dawidnowak/Documents/Magisterka_hifigan/manifest.json")
-SAMPLES_BASE = Path("/Users/dawidnowak/Documents/Magisterka_hifigan/output_hifigan/samples")
+REPO_DIR     = Path("/Users/dawidnowak/Documents/Magisterka_hifigan")
+MANIFEST     = REPO_DIR / "manifest.json"
+SAMPLES_BASE = REPO_DIR / "output_hifigan/samples"
 
 
 def parse_epoch_msg(msg: str):
@@ -43,6 +44,24 @@ def samples_exist(epoch: int) -> bool:
     return d.is_dir() and any(d.glob("*.wav"))
 
 
+def git_push(epoch: int, is_milestone: bool):
+    """Commituje zmienione pliki i pushuje do GitHub Pages."""
+    def run(cmd):
+        subprocess.run(cmd, cwd=REPO_DIR, check=True, capture_output=True)
+
+    run(["git", "add", "manifest.json"])
+
+    if is_milestone:
+        samples_dir = SAMPLES_BASE / f"epoch_{epoch:04d}"
+        for wav in sorted(samples_dir.glob("*.wav")):
+            run(["git", "add", str(wav)])
+
+    label = f"E{epoch} milestone + samples" if is_milestone else f"E{epoch} latest losses"
+    run(["git", "commit", "-m", f"train: {label}"])
+    run(["git", "push"])
+    print(f"  GitHub Pages zaktualizowane — {label}.", flush=True)
+
+
 def update_manifest(epoch: int, losses: dict):
     data = json.loads(MANIFEST.read_text())
     # Zawsze aktualizuj latest_epoch
@@ -50,11 +69,16 @@ def update_manifest(epoch: int, losses: dict):
         data['latest_epoch']  = epoch
         data['latest_losses'] = losses
     # Co 5 epok z próbkami — dodaj do milestones
-    if epoch % 5 == 0 and samples_exist(epoch):
+    is_milestone = epoch % 5 == 0 and samples_exist(epoch)
+    if is_milestone:
         data['epochs'][str(epoch)] = losses
         print(f"  milestone E{epoch} dodany do epochs.", flush=True)
     MANIFEST.write_text(json.dumps(data, indent=2))
     print(f"manifest.json zaktualizowany — latest_epoch={epoch}.", flush=True)
+    try:
+        git_push(epoch, is_milestone)
+    except subprocess.CalledProcessError as e:
+        print(f"  WARN: git push nie powiódł się — {e.stderr.decode()}", flush=True)
 
 
 def main():
