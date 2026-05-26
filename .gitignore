@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Model checkpoints (duże pliki)
+output_hifigan/*.pt
+
+# Logi
+*.log
+*.txt
+
+# Cały dataset (43k plików) — Bentley dodawane force-add
+dataset/
+
+# Surowe dane źródłowe
+physionet.org/
+set_b/
+
+# Pliki wewnętrzne / notatki
+KONTEKST_*.md
+INSTRUKCJA_STRONA.md
+HISTORIA_BLEDOW.md
+debug_mps.py
+preprocess 2.py

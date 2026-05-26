@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>cHiFi-GAN — Odsłuch wyników</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #080a14;
+      --surface:   #0f1120;
+      --surface-2: #131526;
+      --border:    rgba(255,255,255,0.06);
+      --text:      #dde1f0;
+      --muted:     #5a5f7a;
+      --normal:    #4ade80;
+      --murmur:    #fb923c;
+      --extra:     #c084fc;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 300;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Top nav ─────────────────────────────────────── */
+    .topnav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(8,10,20,.94);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 1.5rem;
+      height: 52px;
+      gap: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .topnav::-webkit-scrollbar { display: none; }
+
+    .nav-brand {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1rem;
+      font-weight: 300;
+      color: var(--muted);
+      letter-spacing: .04em;
+      margin-right: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .nav-brand em { font-style: italic; color: var(--normal); }
+
+    .nav-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      margin: 0 .75rem;
+      flex-shrink: 0;
+    }
+
+    #nav-tabs { display: flex; gap: .2rem; align-items: center; }
+
+    .tab-btn {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      padding: .3rem .75rem;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: none;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .63rem;
+      font-weight: 400;
+      letter-spacing: .05em;
+      cursor: pointer;
+      transition: color .18s, border-color .18s, background .18s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+      background: rgba(255,255,255,.04);
+    }
+
+    .tab-btn.active {
+      color: var(--text);
+      border-color: var(--border);
+      background: var(--surface);
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px; left: 50%;
+      transform: translateX(-50%);
+      width: 55%; height: 2px;
+      background: var(--normal);
+      border-radius: 2px 2px 0 0;
+    }
+
+    /* "Najnowsze" special tab */
+    .tab-latest .tab-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--normal);
+      box-shadow: 0 0 0 0 var(--normal);
+      animation: live-pulse 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes live-pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.6); }
+      50%      { box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+    }
+
+    .tab-latest.active .tab-dot { animation: live-pulse 2s ease-in-out infinite; }
+
+    .tab-badge {
+      font-size: .42rem;
+      padding: .1rem .3rem;
+      border-radius: 3px;
+      background: rgba(74,222,128,.12);
+      color: var(--normal);
+      letter-spacing: .06em;
+      font-weight: 500;
+    }
+
+    .tab-epoch-num {
+      font-size: .42rem;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+
+    .tab-btn.active .tab-epoch-num { color: var(--text); }
+
+    /* ── Header ──────────────────────────────────────── */
+    header {
+      position: relative;
+      padding: 3.5rem 2rem 5rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 50% 0%,
+        rgba(74,222,128,.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      font-size: .6rem;
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      opacity: 0;
+      animation: rise .8s .1s ease forwards;
+    }
+
+    h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(1.8rem, 4.5vw, 3.4rem);
+      font-weight: 300;
+      line-height: 1.1;
+      opacity: 0;
+      animation: rise .8s .25s ease forwards;
+    }
+
+    h1 em { font-style: italic; color: var(--normal); }
+
+    .subtitle {
+      margin-top: .85rem;
+      font-size: .62rem;
+      color: var(--muted);
+      letter-spacing: .05em;
+      opacity: 0;
+      animation: rise .8s .4s ease forwards;
+    }
+
+    .ecg-wrap {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 100%; height: 50px;
+      opacity: 0;
+      animation: fadeIn 1s 1s ease forwards;
+      overflow: hidden;
+    }
+
+    .ecg-wrap svg { width: 100%; height: 100%; }
+    .ecg-static { stroke: var(--normal); stroke-width: 1; fill: none; opacity: .1; }
+    .ecg-runner {
+      stroke: var(--normal); stroke-width: 1.8;
+      fill: none;
+      filter: drop-shadow(0 0 5px var(--normal));
+      stroke-dasharray: 80 99999;
+      animation: ecg-run 5s linear infinite;
+    }
+
+    @keyframes ecg-run {
+      from { stroke-dashoffset:  80; }
+      to   { stroke-dashoffset: -2150; }
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn { to { opacity: 1; } }
+
+    /* ── Main content ────────────────────────────────── */
+    #epoch-view { min-height: 60vh; }
+
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    /* ── Epoch chip ──────────────────────────────────── */
+    .epoch-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .35rem .9rem;
+      border: 1px solid rgba(74,222,128,.2);
+      border-radius: 20px;
+      font-size: .6rem;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--normal);
+      margin-bottom: 1.8rem;
+      background: rgba(74,222,128,.05);
+    }
+
+    .epoch-chip .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--normal);
+      box-shadow: 0 0 6px var(--normal);
+    }
+
+    /* ── Params card ─────────────────────────────────── */
+    .params-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 3rem;
+    }
+
+    .card-label {
+      padding: .6rem 1.2rem;
+      font-size: .55rem;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .params-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
+
+    .param {
+      padding: .8rem 1.2rem;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .param-key {
+      font-size: .52rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-bottom: .3rem;
+    }
+
+    .param-val { font-size: .85rem; font-weight: 500; }
+    .param-val.accent { color: var(--normal); }
+
+    /* ── Class section ───────────────────────────────── */
+    .class-section { margin-bottom: 3rem; }
+
+    .class-header {
+      display: flex;
+      align-items: baseline;
+      gap: .75rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .class-pip {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: inline-block;
+      position: relative; top: -1px;
+    }
+
+    .class-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.6rem;
+      font-weight: 300;
+      letter-spacing: .04em;
+    }
+
+    .class-meta { font-size: .56rem; color: var(--muted); margin-left: auto; }
+
+    /* ── Compare grid ────────────────────────────────── */
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .col-head {
+      padding: .55rem 1rem;
+      font-size: .52rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .col-head.left { border-right: 1px solid var(--border); }
+
+    .cell {
+      background: var(--surface-2);
+      padding: .7rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+    }
+
+    .cell.left  { border-right: 1px solid var(--border); }
+    .cell.last  { border-bottom: none; }
+
+    .file-name {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .5rem;
+      color: var(--muted);
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: .42rem;
+      padding: .1rem .35rem;
+      border-radius: 3px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .badge-real { background: rgba(255,255,255,.06); color: var(--muted); }
+    .badge-gen  { color: #0b0d1a; }
+
+    audio { width: 100%; height: 34px; }
+
+    /* ── Color palettes ──────────────────────────────── */
+    .sec-normal .class-pip   { background: var(--normal); box-shadow: 0 0 8px var(--normal); }
+    .sec-normal .class-title { color: var(--normal); }
+    .sec-normal .badge-gen   { background: var(--normal); }
+    .sec-normal audio        { accent-color: var(--normal); }
+    .sec-normal .cell.gen    { border-left: 2px solid rgba(74,222,128,.2); }
+
+    .sec-murmur .class-pip   { background: var(--murmur); box-shadow: 0 0 8px var(--murmur); }
+    .sec-murmur .class-title { color: var(--murmur); }
+    .sec-murmur .badge-gen   { background: var(--murmur); }
+    .sec-murmur audio        { accent-color: var(--murmur); }
+    .sec-murmur .cell.gen    { border-left: 2px solid rgba(251,146,60,.2); }
+
+    .sec-extra .class-pip   { background: var(--extra); box-shadow: 0 0 8px var(--extra); }
+    .sec-extra .class-title { color: var(--extra); }
+    .sec-extra .badge-gen   { background: var(--extra); }
+    .sec-extra audio        { accent-color: var(--extra); }
+    .sec-extra .cell.gen    { border-left: 2px solid rgba(192,132,252,.2); }
+
+    /* ── Footer ──────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      font-size: .52rem;
+      color: var(--muted);
+      letter-spacing: .12em;
+      border-top: 1px solid var(--border);
+      line-height: 2.2;
+    }
+
+    /* ── About view ─────────────────────────────────── */
+    #view-about { display: none; }
+    #view-about.active { display: block; }
+
+    .about-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 5rem;
+    }
+
+    .about-section {
+      margin-bottom: 3rem;
+    }
+
+    .about-section-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.4rem;
+      font-weight: 300;
+      color: var(--normal);
+      letter-spacing: .05em;
+      margin-bottom: 1.1rem;
+      padding-bottom: .5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .about-lead {
+      font-size: .75rem;
+      line-height: 1.9;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    .about-p {
+      font-size: .68rem;
+      line-height: 1.9;
+      color: var(--muted);
+      margin-bottom: .75rem;
+    }
+
+    .about-p strong { color: var(--text); font-weight: 500; }
+
+    /* experiment cards */
+    .exp-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .exp-header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .75rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .exp-num {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.1rem;
+      font-style: italic;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .exp-title {
+      font-size: .68rem;
+      font-weight: 500;
+      color: var(--text);
+      flex: 1;
+    }
+
+    .exp-status {
+      font-size: .45rem;
+      padding: .15rem .45rem;
+      border-radius: 3px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .status-done    { background: rgba(255,255,255,.07); color: var(--muted); }
+    .status-dropped { background: rgba(251,146,60,.12);  color: var(--murmur); }
+    .status-active  { background: rgba(74,222,128,.12);  color: var(--normal); }
+
+    .exp-body {
+      padding: .9rem 1.2rem;
+      font-size: .63rem;
+      line-height: 1.85;
+      color: var(--muted);
+    }
+
+    .exp-body strong { color: var(--text); font-weight: 500; }
+
+    .exp-body ul {
+      margin: .4rem 0 .4rem 1rem;
+      list-style: none;
+    }
+
+    .exp-body ul li::before {
+      content: '–';
+      margin-right: .5rem;
+      color: var(--border);
+    }
+
+    /* about data tables */
+    .about-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .62rem;
+      margin-bottom: .5rem;
+    }
+
+    .about-table th {
+      text-align: left;
+      padding: .45rem .8rem;
+      font-weight: 500;
+      font-size: .52rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .about-table td {
+      padding: .45rem .8rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .about-table tr:last-child td { border-bottom: none; }
+    .about-table td.accent { color: var(--normal); font-weight: 500; }
+    .about-table td.muted  { color: var(--muted); }
+    .about-table tr.total td { border-top: 1px solid rgba(255,255,255,.1); font-weight: 500; }
+
+    /* arch grid */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .arch-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .9rem 1.1rem;
+      font-size: .6rem;
+      line-height: 1.8;
+      color: var(--muted);
+    }
+
+    .arch-card-title {
+      font-size: .55rem;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--normal);
+      margin-bottom: .6rem;
+    }
+
+    .arch-card strong { color: var(--text); font-weight: 500; }
+
+    /* loss progress table */
+    .loss-row-good td:nth-child(2) { color: var(--normal); }
+
+    @media (max-width: 600px) {
+      .compare       { grid-template-columns: 1fr; }
+      .col-head.left { border-right: none; }
+      .cell.left     { border-right: none; }
+      .nav-brand     { display: none; }
+      .arch-grid     { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top nav ───────────────────────────────────────────── -->
+<nav class="topnav">
+  <span class="nav-brand">cHiFi-GAN &nbsp;<em>·</em>&nbsp; dźwięki serca</span>
+  <div class="nav-divider"></div>
+  <div id="nav-tabs"><!-- wypełniane przez JS --></div>
+</nav>
+
+<!-- ── Header ───────────────────────────────────────────── -->
+<header>
+  <p class="eyebrow">Praca magisterska · Synteza audio · Dawid Nowak · 2026</p>
+  <h1>cHiFi-GAN &mdash; Odsłuch <em>wyników treningu</em></h1>
+  <p class="subtitle">
+    Conditional HiFi-GAN &nbsp;·&nbsp; normal / murmur / extrastole
+    &nbsp;·&nbsp; SR 4 000 Hz &nbsp;·&nbsp; 3 s
+  </p>
+  <div class="ecg-wrap">
+    <svg viewBox="0 0 1200 50" preserveAspectRatio="none">
+      <path class="ecg-static" d="M0,25 L80,25 L90,25 L94,8 L98,44 L102,2 L106,48 L110,25 L190,25 L270,25 L280,25 L284,8 L288,44 L292,2 L296,48 L300,25 L380,25 L460,25 L470,25 L474,8 L478,44 L482,2 L486,48 L490,25 L570,25 L650,25 L660,25 L664,8 L668,44 L672,2 L676,48 L680,25 L760,25 L840,25 L850,25 L854,8 L858,44 L862,2 L866,48 L870,25 L950,25 L1030,25 L1040,25 L1044,8 L1048,44 L1052,2 L1056,48 L1060,25 L1200,25"/>
+      <path class="ecg-runner" d="M0,25 L80,25 L90,25 L94,8 L98,44 L102,2 L106,48 L110,25 L190,25 L270,25 L280,25 L284,8 L288,44 L292,2 L296,48 L300,25 L380,25 L460,25 L470,25 L474,8 L478,44 L482,2 L486,48 L490,25 L570,25 L650,25 L660,25 L664,8 L668,44 L672,2 L676,48 L680,25 L760,25 L840,25 L850,25 L854,8 L858,44 L862,2 L866,48 L870,25 L950,25 L1030,25 L1040,25 L1044,8 L1048,44 L1052,2 L1056,48 L1060,25 L1200,25"/>
+    </svg>
+  </div>
+</header>
+
+<!-- ── About view (statyczny) ────────────────────────────── -->
+<div id="view-about">
+<div class="about-wrap">
+
+  <!-- Intro -->
+  <div class="about-section">
+    <div class="about-section-title">Temat pracy</div>
+    <p class="about-lead">
+      <strong>Synteza i augmentacja dźwięków serca przy użyciu warunkowych generatywnych sieci antagonistycznych (cGAN).</strong>
+    </p>
+    <p class="about-p">
+      Celem pracy jest wytrenowanie generatora który na podstawie wektora szumu i etykiety klasy produkuje
+      realistyczne 3-sekundowe nagrania audio bicia serca. Wygenerowane próbki mają służyć jako
+      <strong>augmentacja datasetu</strong> — w szczególności klasy <strong>extrastole</strong>, która
+      posiada zaledwie 64 przykłady treningowe, podczas gdy klasy normal i murmur mają ich ponad 20 000 każda.
+    </p>
+    <p class="about-p">
+      Model warunkowy (cGAN) pozwala sterować klasą generowanego dźwięku przez embedding etykiety
+      konkatenowany z wektorem latentnym i wstrzykiwany do każdej warstwy dyskryminatora.
+      Docelowa miara jakości: <strong>test słuchowy</strong> — odsetek poprawnych klasyfikacji
+      real/fake przez słuchaczy (50% = model oszukuje ludzi).
+    </p>
+  </div>
+
+  <!-- Dataset -->
+  <div class="about-section">
+    <div class="about-section-title">Dataset</div>
+    <p class="about-p">
+      Trzy publiczne zbiory danych, preprocessowane do jednolitego formatu: pliki WAV, 4 000 Hz,
+      3 sekundy, bez zero-paddingu. Pliki krótsze niż 3 s są odrzucane (<code>MIN_DURATION=3.0</code>).
+    </p>
+    <table class="about-table">
+      <thead>
+        <tr><th>Źródło</th><th>Normal</th><th>Murmur</th><th>Extrastole</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>PhysioNet 2016 (sety a–e)</td><td>~5 305</td><td>~17 482</td><td class="muted">0</td></tr>
+        <tr><td>PhysioNet/CirCor 2022</td><td>17 987</td><td>4 475</td><td class="muted">0</td></tr>
+        <tr><td>Bentley Dataset B</td><td>251</td><td>159</td><td class="accent">64 *</td></tr>
+        <tr class="total"><td>Łącznie</td><td>23 543</td><td>22 116</td><td class="accent">64</td></tr>
+      </tbody>
+    </table>
+    <p class="about-p">* Ze 86 oryginalnych nagrań extrastole z Bentley, 22 zostały odrzucone jako zbyt krótkie (&lt; 3 s).
+    Łącznie <strong>43 056 klipów treningowych</strong>. Nierównowagę klas kompensuje <code>WeightedRandomSampler</code>.</p>
+  </div>
+
+  <!-- Historia eksperymentów -->
+  <div class="about-section">
+    <div class="about-section-title">Historia eksperymentów</div>
+
+    <div class="exp-card">
+      <div class="exp-header">
+        <span class="exp-num">01</span>
+        <span class="exp-title">cWaveGAN — 4 000 Hz, 200 epok</span>
+        <span class="exp-status status-done">Zakończony</span>
+      </div>
+      <div class="exp-body">
+        <strong>Architektura:</strong> generator z <code>ConvTranspose1d(stride=4)</code>, dyskryminator WGAN-GP.<br>
+        <strong>Wynik:</strong> Generator ukończył 200 epok, pliki zostały zapisane — ale odsłuch ujawnił poważny artefakt.
+        Wszystkie próbki normal i murmur miały wyraźny "przydzwięk" w paśmie 1 000–2 000 Hz.<br><br>
+        <strong>Przyczyna techniczna:</strong> <code>ConvTranspose1d(stride=4)</code> przy SR = 4 kHz generuje
+        aliasing przy częstotliwości <code>4000 / 4 = 1 000 Hz</code> — dokładnie w centrum pasma słyszalnego.
+        To fundamentalna wada architektury WaveGAN przy tak niskim SR.<br><br>
+        <strong>Próby naprawy:</strong> filtr LPF 700 Hz (Chebyshev II, rząd 16) i multi-notch — obcięły artefakt,
+        ale jednocześnie uszkodziły naturalny dźwięk. Odrzucone.
+      </div>
+    </div>
+
+    <div class="exp-card">
+      <div class="exp-header">
+        <span class="exp-num">02</span>
+        <span class="exp-title">cWaveGAN — 16 000 Hz</span>
+        <span class="exp-status status-dropped">Porzucony</span>
+      </div>
+      <div class="exp-body">
+        Próba podniesienia SR do 16 kHz żeby przesunąć aliasing (4 kHz) poza zakres dźwięków serca (~1 kHz).<br>
+        <strong>Problem:</strong> tensory 4× większe → batch=16 powodował OOM, batch=8 cicho wieszał Metal GPU
+        podczas backprop generatora. Jedynym stabilnym ustawieniem był batch=4, przez co każda epoka trwała
+        <strong>~13 godzin</strong>. Przy 200 epokach całość zajęłaby ponad 100 dni.<br>
+        <strong>Obserwacja dodatkowa:</strong> spektrogramy z epok 5–30 pokazywały energię w całym paśmie 0–8 kHz,
+        podczas gdy prawdziwe dźwięki serca mają energię niemal wyłącznie poniżej 1 kHz. Aliasing przesunął się,
+        ale szerokopasmowy szum stał się jeszcze gorszy. Dataset usunięty.
+      </div>
+    </div>
+
+    <div class="exp-card">
+      <div class="exp-header">
+        <span class="exp-num">03</span>
+        <span class="exp-title">cHiFi-GAN 4 kHz — bez SpectrogramDiscriminator</span>
+        <span class="exp-status status-dropped">Porzucony (~epoka 15)</span>
+      </div>
+      <div class="exp-body">
+        Zmiana architektury upsamplingu: zamiast <code>ConvTranspose1d</code> użyto
+        <code>Upsample(nearest) + Conv1d</code> — eliminuje aliasing bez zmiany SR.<br><br>
+        <ul>
+          <li><strong>Problem 1 — mode collapse:</strong> przy <code>CLASS_EMB_DIM=16</code> korelacja
+              Pearsona między próbkami normal i murmur osiągnęła +0.80 (epoka ~15).
+              Fix: <code>CLASS_EMB_DIM=64</code>, restart od zera.</li>
+          <li><strong>Problem 2 — discriminator dominance:</strong> <code>loss_D</code> spadało do ~1.08
+              zbyt szybko, generator nie miał z czego się uczyć.
+              Fix: <code>LR_D = 1e-4</code> (było <code>2e-4</code>).</li>
+          <li><strong>Problem 3 — brak feedbacku spektralnego:</strong> generator uczył się regularnych
+              pulsów, ale ignorował kształt widma. Fix: dodano SpectrogramDiscriminator.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="exp-card">
+      <div class="exp-header">
+        <span class="exp-num">04</span>
+        <span class="exp-title">cHiFi-GAN 4 kHz + SpectrogramDiscriminator</span>
+        <span class="exp-status status-active">Aktualny · epoka 7+/200</span>
+      </div>
+      <div class="exp-body">
+        Uruchomiony 25 maja 2026. Epoki 1–3 trwały ~3 godziny z powodu kompilacji shaderów Metal
+        (jednorazowe zjawisko). Od epoki 4 stabilny czas: <strong>~62 minuty/epokę</strong>.<br><br>
+        <strong>Dodatkowe poprawki MPS (Apple Silicon M-series):</strong>
+        <ul>
+          <li><code>spectral_norm</code> na pierwszym MSD → deadlock Metal → zamieniono na <code>weight_norm</code></li>
+          <li><code>F.pad(mode='reflect')</code> w PeriodDiscriminator → hang MPS → zmieniono na <code>mode='replicate'</code></li>
+          <li>Podwójne wywołania MPD/MSD w kroku generatora → OOM → jedno wywołanie z rozpakowaniem obu wyników</li>
+          <li><code>torch.mps.empty_cache()</code> po każdym batchu — zapobiega kumulowaniu pamięci Metal</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Architektura -->
+  <div class="about-section">
+    <div class="about-section-title">Aktualna architektura — cHiFi-GAN</div>
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="arch-card-title">Generator</div>
+        <strong>2 322 202 parametrów</strong><br>
+        Wejście: z ∈ ℝ¹²⁸ + class emb ∈ ℝ⁶⁴<br>
+        Init: Linear → (256, 12)<br>
+        Upsample: ×4 ×4 ×4 ×4 ×4 = ×1024<br>
+        Kanały: 256 → 128 → 64 → 32 → 16 → 8<br>
+        MRF kernels: 3, 7, 11 · dilations: 1,3,5<br>
+        Wyjście: (1, 12 288) → trim → (1, 12 000)<br>
+        Aktywacja: LeakyReLU + tanh na wyjściu
+      </div>
+      <div class="arch-card">
+        <div class="arch-card-title">Dyskryminatory (łącznie 14 198 078 param.)</div>
+        <strong>MPD</strong> — Multi-Period Disc., okresy [2, 3, 5]<br>
+        <strong>MSD</strong> — Multi-Scale Disc., 3 skale<br>
+        <strong>SD</strong> — SpectrogramDiscriminator (nowy)<br>
+        &nbsp;&nbsp;STFT: N_FFT=256, hop=64 → log-magnitude<br>
+        &nbsp;&nbsp;2D CNN: 32→64→128→256→1<br>
+        Strata: LS-GAN + feature matching (λ=2.0) + SD (λ=1.0)<br>
+        LR_G = 2e-4 · LR_D = 1e-4 · β=(0.8, 0.99)
+      </div>
+    </div>
+  </div>
+
+  <!-- Postęp treningu -->
+  <div class="about-section">
+    <div class="about-section-title">Postęp treningu</div>
+    <table class="about-table">
+      <thead>
+        <tr><th>Epoka</th><th>loss_D</th><th>loss_G</th><th>adv</th><th>fm</th><th>sd</th><th>Czas</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>5.0636</td><td>11.8026</td><td>6.318</td><td>2.743</td><td>0.364</td><td class="muted">3h 04m *</td></tr>
+        <tr><td>2</td><td>4.2646</td><td>17.1723</td><td>7.438</td><td>4.867</td><td>0.434</td><td class="muted">3h 32m *</td></tr>
+        <tr><td>3</td><td>3.0879</td><td>23.4549</td><td>9.271</td><td>7.092</td><td>0.566</td><td class="muted">3h 38m *</td></tr>
+        <tr><td>4</td><td>2.5547</td><td>26.7011</td><td>10.036</td><td>8.333</td><td>0.614</td><td>1h 01m</td></tr>
+        <tr><td>5</td><td>2.4442</td><td>28.1772</td><td>10.240</td><td>8.969</td><td>0.624</td><td>1h 02m</td></tr>
+        <tr><td>6</td><td>2.4733</td><td>29.0384</td><td>10.182</td><td>9.428</td><td>0.607</td><td>1h 02m</td></tr>
+        <tr class="loss-row-good"><td>7</td><td>2.4674</td><td>29.8040</td><td>10.225</td><td>9.789</td><td>0.609</td><td>1h 05m</td></tr>
+      </tbody>
+    </table>
+    <p class="about-p">* Epoki 1–3 wolne z powodu jednorazowej kompilacji shaderów Metal (Apple MPS).
+    Rosnące <strong>loss_G</strong> i <strong>fm</strong> przy malejącym <strong>loss_D</strong>
+    świadczą o zdrowej dynamice GAN — dyskryminator nie dominuje.</p>
+  </div>
+
+  <!-- Ewaluacja -->
+  <div class="about-section">
+    <div class="about-section-title">Plan ewaluacji</div>
+    <p class="about-p">
+      <strong>Test słuchowy (metoda podstawowa):</strong> słuchacze (niekoniecznie medycy) odsłuchują
+      mieszane próbki bez etykiet i próbują odróżnić prawdziwe od syntetycznych. Miara: procent
+      poprawnych klasyfikacji — wynik 50% oznacza, że model skutecznie oszukuje ludzi.
+    </p>
+    <p class="about-p">
+      Protokół: anchor (najlepsza prawdziwa + najgorsza syntetyczna jako punkt odniesienia),
+      następnie ocena binarna dla próbek bez etykiet.
+    </p>
+    <p class="about-p">
+      <strong>Alternatywna ewaluacja (rozważana z promotorem):</strong> klasyfikator ML trenowany
+      na zbiorze real vs. real+synthetic — bardziej obiektywna miara użyteczności augmentacji
+      do zadań downstream (np. klasyfikacja patologii).
+    </p>
+  </div>
+
+</div>
+</div><!-- /view-about -->
+
+<!-- ── Epoch view (wypełniany przez JS) ─────────────────── -->
+<div id="epoch-view"></div>
+
+<!-- ── Footer ────────────────────────────────────────────── -->
+<footer>
+  cHiFi-GAN &nbsp;·&nbsp; Praca magisterska &nbsp;·&nbsp; Dawid Nowak &nbsp;·&nbsp; 2026<br>
+  Conditional HiFi-GAN for heart sound synthesis
+</footer>
+
+<script>
+const REAL_FILES = {
+  normal:     ['normal_bentley_22025.wav', 'normal_bentley_22026.wav',
+               'normal_bentley_22027.wav', 'normal_bentley_22028.wav'],
+  murmur:     ['murmur_bentley_20648.wav',  'murmur_bentley_20649.wav',
+               'murmur_bentley_20650.wav',  'murmur_bentley_20651.wav'],
+  extrastole: ['extrastole_bentley_00000.wav', 'extrastole_bentley_00001.wav',
+               'extrastole_bentley_00002.wav', 'extrastole_bentley_00003.wav']
+};
+
+const CLASS_CFG = [
+  { key: 'normal',     title: 'Normal',     meta: '23 543 próbek treningowych', css: 'sec-normal'  },
+  { key: 'murmur',     title: 'Murmur',     meta: '22 116 próbek treningowych', css: 'sec-murmur'  },
+  { key: 'extrastole', title: 'Extrastole', meta: '64 próbek treningowych',     css: 'sec-extra'   }
+];
+
+function samplesDir(n) {
+  return `output_hifigan/samples/epoch_${String(n).padStart(4,'0')}`;
+}
+
+function buildClassSection(cfg, epochNum) {
+  const dir = samplesDir(epochNum);
+  const rows = REAL_FILES[cfg.key].map((real, i) => {
+    const idx  = String(i + 1).padStart(2, '0');
+    const gen  = `${cfg.key}_${idx}.wav`;
+    const last = i === 3 ? ' last' : '';
+    return `
+      <div class="cell left${last}">
+        <div class="file-name"><span class="badge badge-real">Real</span>${real}</div>
+        <audio controls src="dataset/${cfg.key}/${real}"></audio>
+      </div>
+      <div class="cell gen${last}">
+        <div class="file-name"><span class="badge badge-gen">Gen</span>${gen}</div>
+        <audio controls src="${dir}/${gen}"></audio>
+      </div>`;
+  }).join('');
+
+  return `
+  <div class="class-section ${cfg.css}">
+    <div class="class-header">
+      <span class="class-pip"></span>
+      <span class="class-title">${cfg.title}</span>
+      <span class="class-meta">${cfg.meta}</span>
+    </div>
+    <div class="compare">
+      <div class="col-head left">Oryginał (dataset Bentley)</div>
+      <div class="col-head">Wygenerowane (epoka ${epochNum})</div>
+      ${rows}
+    </div>
+  </div>`;
+}
+
+function buildParamsCard(epochNum, data) {
+  const fmt = v => v != null ? v : '—';
+  return `
+  <div class="params-card">
+    <div class="card-label">Parametry treningu · Epoka ${epochNum} / 200</div>
+    <div class="params-grid">
+      <div class="param"><div class="param-key">Epoka</div><div class="param-val accent">${epochNum} / 200</div></div>
+      <div class="param"><div class="param-key">loss_D</div><div class="param-val">${fmt(data.loss_D)}</div></div>
+      <div class="param"><div class="param-key">loss_G</div><div class="param-val">${fmt(data.loss_G)}</div></div>
+      <div class="param"><div class="param-key">adv</div><div class="param-val">${fmt(data.adv)}</div></div>
+      <div class="param"><div class="param-key">fm (feature matching)</div><div class="param-val">${fmt(data.fm)}</div></div>
+      <div class="param"><div class="param-key">sd (spektrogram)</div><div class="param-val">${fmt(data.sd)}</div></div>
+      <div class="param"><div class="param-key">Sample Rate</div><div class="param-val">4 000 Hz</div></div>
+      <div class="param"><div class="param-key">Długość klipu</div><div class="param-val">3 s (12 000 próbek)</div></div>
+      <div class="param"><div class="param-key">Batch size</div><div class="param-val">8</div></div>
+      <div class="param"><div class="param-key">LR_G / LR_D</div><div class="param-val">2e-4 / 1e-4</div></div>
+      <div class="param"><div class="param-key">Próbki treningowe</div><div class="param-val">43 056</div></div>
+      <div class="param"><div class="param-key">Architektura</div><div class="param-val">cHiFi-GAN</div></div>
+    </div>
+  </div>`;
+}
+
+function renderEpoch(epochNum, data, hasSamples) {
+  const sections = hasSamples
+    ? CLASS_CFG.map(cfg => buildClassSection(cfg, epochNum)).join('')
+    : `<p style="font-size:.65rem;color:var(--muted);margin-top:-.5rem;letter-spacing:.06em;">
+         Próbki audio dla tej epoki nie zostały jeszcze zapisane — pojawią się po epoce
+         ${Math.ceil(epochNum / 5) * 5}.
+       </p>`;
+  document.getElementById('epoch-view').innerHTML = `
+<main>
+  <div class="epoch-chip"><span class="dot"></span>Epoka ${epochNum} / 200</div>
+  ${buildParamsCard(epochNum, data)}
+  ${sections}
+</main>`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+let _manifest = null;
+
+function setActive(isLatest, epochNum) {
+  document.querySelectorAll('#nav-tabs .tab-btn').forEach(btn => {
+    const isAbout  = btn.dataset.tab === 'about';
+    const isLatestBtn = btn.classList.contains('tab-latest');
+    if (isAbout) { btn.classList.remove('active'); return; }
+    btn.classList.toggle('active',
+      isLatest ? isLatestBtn : (!isLatestBtn && Number(btn.dataset.epoch) === epochNum)
+    );
+  });
+  document.getElementById('view-about').classList.remove('active');
+  document.getElementById('epoch-view').style.display = '';
+}
+
+function showAbout() {
+  document.getElementById('view-about').classList.add('active');
+  document.getElementById('epoch-view').style.display = 'none';
+  document.querySelectorAll('#nav-tabs .tab-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.tab === 'about')
+  );
+}
+
+function showMilestone(epochNum) {
+  renderEpoch(epochNum, _manifest.epochs[String(epochNum)], true);
+  setActive(false, epochNum);
+}
+
+function showLatest() {
+  const ep   = _manifest.latest_epoch;
+  const data = _manifest.latest_losses;
+  const hasSamples = !!_manifest.epochs[String(ep)];
+  renderEpoch(ep, hasSamples ? _manifest.epochs[String(ep)] : data, hasSamples);
+  setActive(true, ep);
+}
+
+function buildNav() {
+  const container = document.getElementById('nav-tabs');
+  container.innerHTML = '';
+
+  // "O projekcie" — zawsze pierwszy
+  const btnAbout = document.createElement('button');
+  btnAbout.className = 'tab-btn tab-about';
+  btnAbout.dataset.tab = 'about';
+  btnAbout.innerHTML = 'O projekcie';
+  btnAbout.onclick = () => showAbout();
+  container.appendChild(btnAbout);
+
+  const milestones = Object.keys(_manifest.epochs).map(Number).sort((a, b) => a - b);
+
+  milestones.forEach(ep => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    btn.dataset.epoch = ep;
+    btn.innerHTML = `Epoka <span class="tab-epoch-num">${ep}</span>`;
+    btn.onclick = () => showMilestone(ep);
+    container.appendChild(btn);
+  });
+
+  // "Najnowsze" — zawsze na końcu
+  const ep  = _manifest.latest_epoch;
+  const btn = document.createElement('button');
+  btn.className = 'tab-btn tab-latest';
+  btn.dataset.epoch = ep;
+  btn.innerHTML = `<span class="tab-dot"></span>Najnowsze <span class="tab-badge">E${ep}</span>`;
+  btn.onclick = () => showLatest();
+  container.appendChild(btn);
+}
+
+async function init() {
+  const r = await fetch(`manifest.json?t=${Date.now()}`);
+  _manifest = await r.json();
+  buildNav();
+  showAbout();
+}
+
+// Dopasuj ECG runner do rzeczywistej długości ścieżki
+window.addEventListener('load', () => {
+  const runner = document.querySelector('.ecg-runner');
+  if (!runner) return;
+  const len = Math.ceil(runner.getTotalLength());
+  runner.style.strokeDasharray = `80 ${len + 100}`;
+  const sheet = document.createElement('style');
+  sheet.textContent = `@keyframes ecg-run { from { stroke-dashoffset: 80; } to { stroke-dashoffset: -${len + 80}; } }`;
+  document.head.appendChild(sheet);
+  runner.style.animationName = 'none';
+  requestAnimationFrame(() => { runner.style.animationName = 'ecg-run'; });
+});
+
+init();
+</script>
+
+</body>
+</html>
